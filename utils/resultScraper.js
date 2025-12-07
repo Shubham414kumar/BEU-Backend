@@ -51,29 +51,33 @@ const fetchResult = async (regNo, semester) => {
 
             if (clicked) {
                 console.log('[Scraper] Found on New Site. Navigating...');
-                foundOnNewSite = true;
                 await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
-                // NEW SITE SCRAPING LOGIC
-                // Assume generic input for Reg No
-                const inputSelector = 'input[type="text"]';
-                await page.waitForSelector(inputSelector);
-                await page.type(inputSelector, regNo);
+                // CHECK IF PAGE IS BROKEN (404 / Server Error)
+                const pageText = await page.evaluate(() => document.body.innerText);
+                if (pageText.includes('Server Error') || pageText.includes('resource cannot be found') || pageText.includes('404')) {
+                    console.log('[Scraper] New Site returned Server Error (404). Triggering fallback to Old Site.');
+                    foundOnNewSite = false;
+                } else {
+                    foundOnNewSite = true;
+                    // NEW SITE SCRAPING LOGIC
+                    // Assume generic input for Reg No
+                    const inputSelector = 'input[type="text"]';
+                    await page.waitForSelector(inputSelector);
+                    await page.type(inputSelector, regNo);
 
-                // Click generic Submit/Search button
-                const btnSelector = 'button, input[type="submit"], input[type="button"]';
-                // Pick the one that looks like "Show" or "Search" or "Get"
-                // Or just click the first button found in form
-                await page.evaluate(() => {
-                    const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
-                    const resultBtn = btns.find(b => b.innerText.toLowerCase().includes('result') || b.value.toLowerCase().includes('show'));
-                    if (resultBtn) resultBtn.click();
-                    else if (btns.length > 0) btns[0].click();
-                });
+                    // Click generic Submit/Search button
+                    await page.evaluate(() => {
+                        const btns = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+                        const resultBtn = btns.find(b => b.innerText.toLowerCase().includes('result') || b.value.toLowerCase().includes('show'));
+                        if (resultBtn) resultBtn.click();
+                        else if (btns.length > 0) btns[0].click();
+                    });
 
-                await page.waitForSelector('table', { timeout: 10000 });
-                // Scrape New Format (Generic Table Scraper)
-                return await scrapeGenericTable(page, regNo, semester);
+                    await page.waitForSelector('table', { timeout: 10000 });
+                    // Scrape New Format (Generic Table Scraper)
+                    return await scrapeGenericTable(page, regNo, semester);
+                }
             }
         } catch (e) {
             console.log('[Scraper] New Site check failed, falling back to Old Site:', e.message);
