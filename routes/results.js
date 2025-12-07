@@ -13,12 +13,23 @@ router.get('/:regNo', async (req, res) => {
         const doc = await resultRef.get();
 
         if (doc.exists) {
-            console.log('Serving result from Cache');
-            return res.json(doc.data());
+            const data = doc.data();
+            // If semester requested, ensure cache matches
+            // Normalize: '3rd' vs '3'
+            const cachedSem = data.studentInfo?.semester || '';
+            const reqSem = semester || '';
+
+            // Simple inclusion check or exact match
+            if (!reqSem || cachedSem.includes(reqSem) || reqSem.includes(cachedSem)) {
+                console.log('Serving result from Cache');
+                return res.json(data);
+            }
+            console.log(`Cache mismatch (Req: ${reqSem}, Cached: ${cachedSem}). Re-fetching.`);
         }
 
+        const { semester } = req.query;
         // 2. If not in cache, Scrape
-        const resultData = await fetchResult(regNo);
+        const resultData = await fetchResult(regNo, semester || '1st'); // Default to 1st if missing, but UI enforces it
 
         // 3. Save to Cache
         await resultRef.set({

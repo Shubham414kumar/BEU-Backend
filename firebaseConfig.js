@@ -14,6 +14,13 @@ try {
             credential: admin.credential.cert(serviceAccount)
         });
         console.log('Firebase Admin Initialized with serviceAccountKey.json');
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        // Parse JSON from Env Var
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('Firebase Admin Initialized from FIREBASE_SERVICE_ACCOUNT env var');
     } else {
         // Fallback to environment variables (GOOGLE_APPLICATION_CREDENTIALS)
         admin.initializeApp({
