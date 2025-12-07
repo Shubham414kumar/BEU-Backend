@@ -90,18 +90,26 @@ const fetchResult = async (regNo, semester) => {
             console.log('[Scraper] Checking Old Site...');
             await page.goto('http://results.beup.ac.in', { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-            // Using XPath for OLD site format
+            // Using XPath for OLD site format (Case Insensitive)
             // "B.Tech. 3rd Semester..."
-            const linkText = `B.Tech ${semester}`; // e.g. "B.Tech 3rd"
-            // Flexible xpath
-            const links = await page.$x(`//a[contains(., "B.Tech") and contains(., "${semester}")]`);
+            // translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')
+
+            const links = await page.$x(`//a[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), "b.tech") and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), "${semester.toLowerCase()}")]`);
 
             if (links.length === 0) {
+                console.log(`[Scraper] Link for "B.Tech ${semester}" not found on Old Site.`);
+                // Last ditch effort: Try finding any link with just the semester number if 'b.tech' is implicit?
+                // No, dangerous.
                 throw new Error(`Result link for "B.Tech ${semester}" not found on either site.`);
             }
 
-            await links[0].click();
-            await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+            console.log('[Scraper] Found link on Old Site. Clicking...');
+
+            // Promise.all to handle navigation race conditions
+            await Promise.all([
+                page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+                links[0].click()
+            ]);
 
             const inputSelector = 'input[name*="RegistrationNo"]';
             await page.waitForSelector(inputSelector);
