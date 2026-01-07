@@ -1,37 +1,47 @@
 const express = require('express');
 const router = express.Router();
-// const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// Initialize Gemini API (Placeholder)
-// const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Initialize Gemini API
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+async function generateContentWithFallback(prompt) {
+    const models = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "models/gemini-1.5-flash",
+        "gemini-pro",
+        "models/gemini-pro",
+        "gemini-1.0-pro"
+    ];
+    let lastError = null;
+
+    for (const modelName of models) {
+        try {
+            console.log(`Trying model: ${modelName}`);
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.text();
+        } catch (error) {
+            console.warn(`Model ${modelName} failed: ${error.message}`);
+            lastError = error;
+        }
+    }
+    throw lastError;
+}
 
 // POST /api/ai/chat
 router.post('/chat', async (req, res) => {
     try {
         const { message } = req.body;
+        if (!message) return res.status(400).json({ error: 'Message is required' });
 
-        if (!message) {
-            return res.status(400).json({ error: 'Message is required' });
-        }
-
-        // Simulate AI Response
-        // In production, uncomment Gemini code below
-        /*
-        const model = genAI.getGenerativeModel({ model: "gemini-pro"});
-        const result = await model.generateContent(message);
-        const response = await result.response;
-        const text = response.text();
-        */
-
-        const mockResponse = `This is a simulated AI response to: "${message}". \n\nI can help you explain concepts, summarize notes, or generate quizzes. (Integration pending API Key)`;
-
-        // Simulate delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        res.json({ response: mockResponse });
+        const text = await generateContentWithFallback(message);
+        res.json({ response: text });
     } catch (error) {
-        console.error('Error in AI chat:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('All AI models failed:', error);
+        res.status(500).json({ error: 'Failed to generate response' });
     }
 });
 
@@ -39,25 +49,30 @@ router.post('/chat', async (req, res) => {
 router.post('/quiz', async (req, res) => {
     try {
         const { topic } = req.body;
+        if (!topic) return res.status(400).json({ error: 'Topic is required' });
 
-        // Mock Quiz Data
-        const quiz = [
+        // Prompt Engineering for JSON output
+        const prompt = `Generate a quiz about "${topic}" with 5 questions. 
+        Output ONLY valid JSON array with this structure:
+        [
             {
-                question: `What is the primary function of a diode in a circuit related to ${topic}?`,
-                options: ['Amplification', 'Rectification', 'Oscillation', 'Modulation'],
-                correctIndex: 1
-            },
-            {
-                question: `Which law relates voltage, current, and resistance?`,
-                options: ['Newton\'s Law', 'Ohm\'s Law', 'Kirchhoff\'s Law', 'Faraday\'s Law'],
-                correctIndex: 1
+                "question": "Question text",
+                "options": ["A", "B", "C", "D"],
+                "correctIndex": 0 // 0-3 index of correct option
             }
-        ];
+        ]
+        Do not include markdown formatting like \`\`\`json. Just the raw JSON array.`;
 
+        let text = await generateContentWithFallback(prompt);
+
+        // Cleanup if model returns markdown
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const quiz = JSON.parse(text);
         res.json({ quiz });
     } catch (error) {
         console.error('Error generating quiz:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: 'Failed to generate quiz' });
     }
 });
 

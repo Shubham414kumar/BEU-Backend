@@ -17,7 +17,7 @@ router.get('/:regNo', async (req, res) => {
             // If semester requested, ensure cache matches
             // Normalize: '3rd' vs '3'
             const cachedSem = data.studentInfo?.semester || '';
-            const reqSem = semester || '';
+            const reqSem = req.query.semester || '';
 
             // Simple inclusion check or exact match
             if (!reqSem || cachedSem.includes(reqSem) || reqSem.includes(cachedSem)) {
